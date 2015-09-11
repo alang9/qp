@@ -17,9 +17,25 @@ extra-source-files:  README.md
 cabal-version:       >=1.10
 
 library
-  -- exposed-modules:     
+  exposed-modules:     Numeric.QpOases
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       base >=4.8 && <4.9
+  build-depends:       base >=4.8 && <4.9,
+                       hmatrix,
+                       transformers,
+                       vector
   hs-source-dirs:      src
   default-language:    Haskell2010
+  c-sources:           cbits/qpOASES_wrapper.cpp
+  include-dirs:        cbits, include, include/qpOASES, include/qpOASES/extras
+  install-includes:    qpOASES.hpp, Bounds.hpp, Bounds.ipp, Constants.hpp, ConstraintProduct.hpp, Constraints.hpp, Constraints.ipp, Flipper.hpp, Indexlist.hpp, Indexlist.ipp, Matrices.hpp, MessageHandling.hpp, MessageHandling.ipp, Options.hpp, QProblemB.hpp, QProblemB.ipp, QProblem.hpp, QProblem.ipp, SparseSolver.hpp, SQProblem.hpp, SQProblem.ipp, SQProblemSchur.hpp, SQProblemSchur.ipp, SubjectTo.hpp, SubjectTo.ipp, Types.hpp, UnitTesting.hpp, Utils.hpp, Utils.ipp, OQPinterface.hpp, SolutionAnalysis.hpp, SolutionAnalysis.ipp, qpOASES_wrapper.h
+  extra-libraries:     qpOASES, stdc++
+  extra-lib-dirs:      /home/alang/src/qp/libs
+
+executable test
+  main-is: test.hs
+  build-depends: base >=4.8 && <4.9,
+                 hmatrix,
+                 transformers,
+                 vector,
+                 qp
