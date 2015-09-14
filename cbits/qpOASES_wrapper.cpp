@@ -522,30 +522,27 @@ int_t sqproblem_init(sqproblem* const problem,
 /*
  *	S Q P r o b l e m _ h o t s t a r t
  */
-int_t SQProblem_hotstart(	const real_t* const H,
-							const real_t* const g,
-							const real_t* const A,
-							const real_t* const lb,
-							const real_t* const ub,
-							const real_t* const lbA,
-							const real_t* const ubA,
-							int_t* const nWSR,
-							real_t* const cputime,
-							real_t* const x,
-							real_t* const y,
-							real_t* const obj,
-							int_t* const status
-							)
+int_t sqproblem_hotstart(sqproblem* const problem,
+			 const real_t* const H,
+			 const real_t* const g,
+			 const real_t* const A,
+			 const real_t* const lb,
+			 const real_t* const ub,
+			 const real_t* const lbA,
+			 const real_t* const ubA,
+			 int_t* const nWSR,
+			 real_t* const cputime,
+			 real_t* const x,
+			 real_t* const y,
+			 real_t* const obj,
+			 int_t* const status
+			 )
 {
-	/* abort if SQProblem_setup has not been called */
-	if ( globalSQProblemObject == 0 )
-		return -1;
-
 	/* actually call solver */
-	returnValue returnvalue = globalSQProblemObject->hotstart( H,g,A,lb,ub,lbA,ubA, *nWSR,cputime );
+	returnValue returnvalue = problem->p.hotstart( H,g,A,lb,ub,lbA,ubA, *nWSR,cputime );
 
 	/* assign lhs arguments */
-	return qpOASES_obtainOutputs( globalSQProblemObject,returnvalue, x,y,obj,status );
+	return qpOASES_obtainOutputs( &problem->p,returnvalue, x,y,obj,status );
 
 	return 0;
 }

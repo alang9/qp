@@ -61,10 +61,50 @@ initSQP sqp h g a lbA ubA = liftIO $
     mat' m f = mat (cmat m) $ \church -> church $ \nrow ncol ptr -> f nrow ncol ptr
     vec' v f = vec v $ \church -> church $ \size ptr -> f size ptr
 
+hotstartSQP :: SQProblem -> Matrix Double -> Vector Double -> Matrix Double
+            -> Vector Double -> Vector Double
+            -> ExceptT OasesError IO (Vector Double, Double)
+hotstartSQP sqp h g a lbA ubA = liftIO $
+  mat' h $ \hRow hCol hPtr ->
+  vec' g $ \gSize gPtr ->
+  mat' a $ \aRow aCol aPtr ->
+  vec' lbA $ \lbASize lbAPtr ->
+  vec' ubA $ \ubASize ubAPtr -> do
+    let nVar = gSize
+    guard $ nVar == hRow
+    guard $ nVar == hCol
+    guard $ nVar == aCol
+    let nConstr = aRow
+    guard $ nConstr == lbASize
+    guard $ nConstr == ubASize
+    primalFP <- mallocForeignPtrArray (fromIntegral nVar)
+    (obj, status) <- withForeignPtr primalFP $ \xPtr ->
+      allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
+      alloca $ \objPtr ->
+      alloca $ \statusPtr ->
+      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
+        _ <- withSQProblem sqp $ \ptr ->
+               sqproblem_hotstart ptr hPtr gPtr aPtr nullPtr nullPtr lbAPtr ubAPtr
+               nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
+        !obj <- peek objPtr
+        !status <- peek statusPtr
+        return $ (obj, status)
+    let solutionVec = VS.unsafeFromForeignPtr0 primalFP (fromIntegral nVar)
+    return (solutionVec, obj)
+  where
+    mat' m f = mat (cmat m) $ \church -> church $ \nrow ncol ptr -> f nrow ncol ptr
+    vec' v f = vec v $ \church -> church $ \size ptr -> f size ptr
+
 data Options
 
 foreign import ccall "sqproblem_init"
     sqproblem_init
+        :: Ptr SQProblem -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> IO CInt
+
+foreign import ccall "sqproblem_hotstart"
+    sqproblem_hotstart
         :: Ptr SQProblem -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double
         -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> Ptr Double
         -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> IO CInt
