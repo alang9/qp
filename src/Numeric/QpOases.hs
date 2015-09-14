@@ -54,7 +54,7 @@ initSQP sqp h g a lbA ubA =
                sqproblem_init ptr hPtr gPtr aPtr nullPtr nullPtr lbAPtr ubAPtr
                nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
-        !status <- peek statusPtr
+        !status <- fromIntegral <$> peek statusPtr
         return $ (obj, status)
     let solutionVec = VS.unsafeFromForeignPtr0 primalFP (fromIntegral nVar)
     if status == 0
@@ -91,7 +91,7 @@ hotstartSQP sqp h g a lbA ubA =
                sqproblem_hotstart ptr hPtr gPtr aPtr nullPtr nullPtr lbAPtr ubAPtr
                nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
-        !status <- peek statusPtr
+        !status <- fromIntegral <$> peek statusPtr
         return $ (obj, status)
     let solutionVec = VS.unsafeFromForeignPtr0 primalFP (fromIntegral nVar)
     if status == 0
@@ -106,14 +106,14 @@ data Options
 foreign import ccall "sqproblem_init"
     sqproblem_init
         :: Ptr SQProblem -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double
-        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> Ptr Double
-        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> IO CInt
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> IO CInt
 
 foreign import ccall "sqproblem_hotstart"
     sqproblem_hotstart
         :: Ptr SQProblem -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double
-        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> Ptr Double
-        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> IO CInt
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> IO CInt
 
 foreign import ccall "sqproblem_setup"
     sqproblem_setup
