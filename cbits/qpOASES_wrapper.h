@@ -85,10 +85,10 @@
 	#define PL_MEDIUM            2
 	#define PL_HIGH              3
 
-#else 
+#else
 
 	#define QProblemBClass QProblemB
-	#define OptionsClass REFER_NAMESPACE_QPOASES Options 
+	#define OptionsClass REFER_NAMESPACE_QPOASES Options
 
 	/* only declare when compiling C++ library */
 	static QProblem*  globalQProblemObject  = 0;
@@ -98,7 +98,7 @@
 
 #endif /* QPOASES_TYPES_HPP */
 
-
+struct sqproblem;
 
 /**
  *	\brief Manages all user-specified options for solving QPs.
@@ -246,26 +246,29 @@ int_t QProblemB_cleanup( );
 
 
 
-int_t SQProblem_setup(	int_t nV,
-						int_t nC,
-						int_t hessianType
-						);
+int_t SQProblem_setup(int_t nV,
+		      int_t nC,
+		      int_t hessianType,
+		      sqproblem* const problem
+		      );
 
-int_t SQProblem_init(	const real_t* const H,
-						const real_t* const g,
-						const real_t* const A,
-						const real_t* const lb,
-						const real_t* const ub,
-						const real_t* const lbA,
-						const real_t* const ubA,
-						int_t* const nWSR,
-						real_t* const cputime,
-						const qpOASES_Options* const options,
-						real_t* const x,
-						real_t* const y,
-						real_t* const obj,
-						int_t* const status
-						);
+int_t sqproblem_setup(int_t nV, int_t nC, int_t hessiantType, sqproblem** problem);
+
+int_t sqproblem_init(sqproblem* const problem,
+		     const real_t* const H,
+		     const real_t* const g,
+		     const real_t* const A,
+		     const real_t* const lb,
+		     const real_t* const ub,
+		     const real_t* const lbA,
+		     const real_t* const ubA,
+		     int_t* const nWSR,
+		     real_t* const cputime,
+		     real_t* const x,
+		     real_t* const y,
+		     real_t* const obj,
+		     int_t* const status
+		     );
 
 int_t SQProblem_hotstart(	const real_t* const H,
 							const real_t* const g,
@@ -283,6 +286,8 @@ int_t SQProblem_hotstart(	const real_t* const H,
 							);
 
 int_t SQProblem_cleanup( );
+
+int_t sqproblem_cleanup(sqproblem* const problem);
 
 
 #endif /* QPOASES_WRAPPER_H */

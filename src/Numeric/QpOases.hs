@@ -6,24 +6,36 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Except
 import qualified Data.Vector.Storable as VS
-import Foreign
+import Foreign hiding (void)
 import Foreign.C.Types
 import Numeric.LinearAlgebra
 import Numeric.LinearAlgebra.Devel
 
 data OasesError = OasesError deriving (Show)
 
-#define HST_POSDEF           2
+data HessianType = HST_ZERO | HST_IDENTITY | HST_POSDEF | HST_POSDEF_NULLSPACE | HST_SEMIDEF | HST_INDEF | HST_UNKNOWN deriving (Enum, Show)
 
-solveQP :: Matrix Double -> Vector Double -> Matrix Double
+newtype SQProblem = SQProblem (ForeignPtr SQProblem)
+
+setupSQP :: Int -> Int -> HessianType -> IO SQProblem
+setupSQP nV nC h = do
+    ptr2 <- alloca $ \ptr -> do
+        !_ <- sqproblem_setup (fromIntegral nV) (fromIntegral nC) (fromIntegral $ fromEnum h) ptr
+        peek ptr
+    SQProblem <$> newForeignPtr sqproblem_cleanup ptr2
+
+withSQProblem :: SQProblem -> (Ptr SQProblem -> IO a) -> IO a
+withSQProblem (SQProblem fPtr) f = withForeignPtr fPtr f
+
+initSQP :: SQProblem -> Matrix Double -> Vector Double -> Matrix Double
         -> Vector Double -> Vector Double
         -> ExceptT OasesError IO (Vector Double, Double)
-solveQP h g a lbA ubA = liftIO $
+initSQP sqp h g a lbA ubA = liftIO $
   mat' h $ \hRow hCol hPtr ->
   vec' g $ \gSize gPtr ->
   mat' a $ \aRow aCol aPtr ->
   vec' lbA $ \lbASize lbAPtr ->
-  vec' ubA $ \ubASize ubAPtr -> do 
+  vec' ubA $ \ubASize ubAPtr -> do
     let nVar = gSize
     guard $ nVar == hRow
     guard $ nVar == hCol
@@ -36,12 +48,12 @@ solveQP h g a lbA ubA = liftIO $
       allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
       alloca $ \objPtr ->
       alloca $ \statusPtr ->
-      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
-        _ <- c_SQProblem_setup nVar nConstr HST_POSDEF
-        _ <- c_SQProblem_init hPtr gPtr aPtr nullPtr nullPtr lbAPtr ubAPtr nWSRPtr nullPtr nullPtr xPtr yPtr objPtr statusPtr
+      with (10 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
+        _ <- withSQProblem sqp $ \ptr ->
+               sqproblem_init ptr hPtr gPtr aPtr nullPtr nullPtr lbAPtr ubAPtr
+               nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
         !status <- peek statusPtr
-        _ <- c_SQProblem_cleanup
         return $ (obj, status)
     let solutionVec = VS.unsafeFromForeignPtr0 primalFP (fromIntegral nVar)
     return (solutionVec, obj)
@@ -51,14 +63,16 @@ solveQP h g a lbA ubA = liftIO $
 
 data Options
 
-foreign import ccall "SQProblem_init"
-    c_SQProblem_init
-        :: Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> Ptr Double -> Ptr Options -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> IO CInt
+foreign import ccall "sqproblem_init"
+    sqproblem_init
+        :: Ptr SQProblem -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Int -> IO CInt
 
-foreign import ccall "SQProblem_setup"
-    c_SQProblem_setup
-        :: CInt -> CInt -> CInt -> IO CInt
+foreign import ccall "sqproblem_setup"
+    sqproblem_setup
+        :: CInt -> CInt -> CInt -> Ptr (Ptr SQProblem)-> IO CInt
 
-foreign import ccall "SQProblem_cleanup"
-    c_SQProblem_cleanup
-        :: IO CInt
+foreign import ccall "&sqproblem_cleanup"
+    sqproblem_cleanup
+        :: FunPtr (Ptr SQProblem -> IO ())

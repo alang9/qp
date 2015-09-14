@@ -461,15 +461,17 @@ int_t QProblemB_cleanup( )
 	return 0;
 }
 
+struct sqproblem
+{
+  SQProblem p;
+};
 
 
 /*
  *	S Q P r o b l e m _ s e t u p
  */
-int_t SQProblem_setup(	int_t nV,
-						int_t nC,
-						int_t hessianType
-						)
+int_t sqproblem_setup(int_t nV, int_t nC, int_t hessianType,
+		      sqproblem** problem)
 {
 	if ( ( nV < 1 ) || ( nC < 0 ) )
 		return -1;
@@ -477,11 +479,10 @@ int_t SQProblem_setup(	int_t nV,
 	if ( ( hessianType < 0 ) || ( hessianType > 6 ) )
 		return -1;
 
-	if ( SQProblem_cleanup() != 0 )
-		return -1;
+	struct sqproblem *problem1 = new sqproblem;
+        problem1->p = SQProblem(nV, nC, (HessianType)hessianType);
+	*problem = problem1;
 
-	globalSQProblemObject = new SQProblem( nV,nC,(HessianType)hessianType );
-	
 	return 0;
 }
 
@@ -489,36 +490,32 @@ int_t SQProblem_setup(	int_t nV,
 /*
  *	S Q P r o b l e m _ i n i t
  */
-int_t SQProblem_init(	const real_t* const H,
-						const real_t* const g,
-						const real_t* const A,
-						const real_t* const lb,
-						const real_t* const ub,
-						const real_t* const lbA,
-						const real_t* const ubA,
-						int_t* const nWSR,
-						real_t* const cputime,
-						const qpOASES_Options* const options,
-						real_t* const x,
-						real_t* const y,
-						real_t* const obj,
-						int_t* const status
-						)
+int_t sqproblem_init(sqproblem* const problem,
+		     const real_t* const H,
+		     const real_t* const g,
+		     const real_t* const A,
+		     const real_t* const lb,
+		     const real_t* const ub,
+		     const real_t* const lbA,
+		     const real_t* const ubA,
+		     int_t* const nWSR,
+		     real_t* const cputime,
+		     real_t* const x,
+		     real_t* const y,
+		     real_t* const obj,
+		     int_t* const status
+		     )
 {
-	/* abort if SQProblem_setup has not been called */
-	if ( globalSQProblemObject == 0 )
-		return -1;
+  qpOASES_Options myOptions;
+  qpOASES_Options_init(&myOptions, 1);
+  qpOASES_Options_copy(&myOptions, &globalOptionsObject);
+  problem->p.setOptions(globalOptionsObject);
 
-	qpOASES_Options myOptions;
-	qpOASES_Options_init(&myOptions, 1);
-        qpOASES_Options_copy(&myOptions, &globalOptionsObject);
-	globalSQProblemObject->setOptions( globalOptionsObject );
+  /* actually call solver */
+  returnValue returnvalue = problem->p.init( H,g,A,lb,ub,lbA,ubA, *nWSR,cputime );
 
-	/* actually call solver */
-	returnValue returnvalue = globalSQProblemObject->init( H,g,A,lb,ub,lbA,ubA, *nWSR,cputime );
-
-	/* assign lhs arguments */
-	return qpOASES_obtainOutputs( globalSQProblemObject,returnvalue, x,y,obj,status );
+  /* assign lhs arguments */
+  return qpOASES_obtainOutputs(&problem->p,returnvalue, x,y,obj,status );
 }
 
 
@@ -553,19 +550,9 @@ int_t SQProblem_hotstart(	const real_t* const H,
 	return 0;
 }
 
-
-/*
- *	S Q P r o b l e m _ c l e a n u p
- */
-int_t SQProblem_cleanup( )
+int_t sqproblem_cleanup(sqproblem* const problem)
 {
-	if ( globalSQProblemObject != 0 )
-	{
-		delete globalSQProblemObject;
-		globalSQProblemObject = 0;
-	}
-
-	return 0;
+  delete problem;
 }
 
 
