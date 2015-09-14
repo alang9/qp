@@ -11,7 +11,7 @@ import Foreign.C.Types
 import Numeric.LinearAlgebra
 import Numeric.LinearAlgebra.Devel
 
-data OasesError = OasesError deriving (Show)
+data OasesError = SizeMismatch | OasesError Int deriving (Show)
 
 data HessianType = HST_ZERO | HST_IDENTITY | HST_POSDEF | HST_POSDEF_NULLSPACE | HST_SEMIDEF | HST_INDEF | HST_UNKNOWN deriving (Enum, Show)
 
@@ -30,25 +30,26 @@ withSQProblem (SQProblem fPtr) f = withForeignPtr fPtr f
 initSQP :: SQProblem -> Matrix Double -> Vector Double -> Matrix Double
         -> Vector Double -> Vector Double
         -> ExceptT OasesError IO (Vector Double, Double)
-initSQP sqp h g a lbA ubA = liftIO $
+initSQP sqp h g a lbA ubA =
   mat' h $ \hRow hCol hPtr ->
   vec' g $ \gSize gPtr ->
   mat' a $ \aRow aCol aPtr ->
   vec' lbA $ \lbASize lbAPtr ->
   vec' ubA $ \ubASize ubAPtr -> do
     let nVar = gSize
-    guard $ nVar == hRow
-    guard $ nVar == hCol
-    guard $ nVar == aCol
     let nConstr = aRow
-    guard $ nConstr == lbASize
-    guard $ nConstr == ubASize
-    primalFP <- mallocForeignPtrArray (fromIntegral nVar)
-    (obj, status) <- withForeignPtr primalFP $ \xPtr ->
+    unless (nVar == hRow) $ throwE SizeMismatch
+    unless (nVar == hRow) $ throwE SizeMismatch
+    unless (nVar == hCol) $ throwE SizeMismatch
+    unless (nVar == aCol) $ throwE SizeMismatch
+    unless (nConstr == lbASize) $ throwE SizeMismatch
+    unless (nConstr == ubASize) $ throwE SizeMismatch
+    primalFP <- liftIO $ mallocForeignPtrArray (fromIntegral nVar)
+    (obj, status) <- liftIO $ withForeignPtr primalFP $ \xPtr ->
       allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
       alloca $ \objPtr ->
       alloca $ \statusPtr ->
-      with (10 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
+      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
         _ <- withSQProblem sqp $ \ptr ->
                sqproblem_init ptr hPtr gPtr aPtr nullPtr nullPtr lbAPtr ubAPtr
                nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
@@ -56,29 +57,32 @@ initSQP sqp h g a lbA ubA = liftIO $
         !status <- peek statusPtr
         return $ (obj, status)
     let solutionVec = VS.unsafeFromForeignPtr0 primalFP (fromIntegral nVar)
-    return (solutionVec, obj)
+    if status == 0
+      then return (solutionVec, obj)
+      else throwE (OasesError status)
   where
-    mat' m f = mat (cmat m) $ \church -> church $ \nrow ncol ptr -> f nrow ncol ptr
-    vec' v f = vec v $ \church -> church $ \size ptr -> f size ptr
+    mat' m f = ExceptT $ mat (cmat m) $ \church -> church $ \nrow ncol ptr -> runExceptT $ f nrow ncol ptr
+    vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
 hotstartSQP :: SQProblem -> Matrix Double -> Vector Double -> Matrix Double
             -> Vector Double -> Vector Double
             -> ExceptT OasesError IO (Vector Double, Double)
-hotstartSQP sqp h g a lbA ubA = liftIO $
+hotstartSQP sqp h g a lbA ubA =
   mat' h $ \hRow hCol hPtr ->
   vec' g $ \gSize gPtr ->
   mat' a $ \aRow aCol aPtr ->
   vec' lbA $ \lbASize lbAPtr ->
   vec' ubA $ \ubASize ubAPtr -> do
     let nVar = gSize
-    guard $ nVar == hRow
-    guard $ nVar == hCol
-    guard $ nVar == aCol
     let nConstr = aRow
-    guard $ nConstr == lbASize
-    guard $ nConstr == ubASize
-    primalFP <- mallocForeignPtrArray (fromIntegral nVar)
-    (obj, status) <- withForeignPtr primalFP $ \xPtr ->
+    unless (nVar == hRow) $ throwE SizeMismatch
+    unless (nVar == hRow) $ throwE SizeMismatch
+    unless (nVar == hCol) $ throwE SizeMismatch
+    unless (nVar == aCol) $ throwE SizeMismatch
+    unless (nConstr == lbASize) $ throwE SizeMismatch
+    unless (nConstr == ubASize) $ throwE SizeMismatch
+    primalFP <- liftIO $ mallocForeignPtrArray (fromIntegral nVar)
+    (obj, status) <- liftIO $ withForeignPtr primalFP $ \xPtr ->
       allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
       alloca $ \objPtr ->
       alloca $ \statusPtr ->
@@ -90,10 +94,12 @@ hotstartSQP sqp h g a lbA ubA = liftIO $
         !status <- peek statusPtr
         return $ (obj, status)
     let solutionVec = VS.unsafeFromForeignPtr0 primalFP (fromIntegral nVar)
-    return (solutionVec, obj)
+    if status == 0
+      then return (solutionVec, obj)
+      else throwE (OasesError status)
   where
-    mat' m f = mat (cmat m) $ \church -> church $ \nrow ncol ptr -> f nrow ncol ptr
-    vec' v f = vec v $ \church -> church $ \size ptr -> f size ptr
+    mat' m f = ExceptT $ mat (cmat m) $ \church -> church $ \nrow ncol ptr -> runExceptT $ f nrow ncol ptr
+    vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
 data Options
 
