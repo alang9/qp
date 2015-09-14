@@ -15,7 +15,7 @@ data OasesError = OasesError deriving (Show)
 
 data HessianType = HST_ZERO | HST_IDENTITY | HST_POSDEF | HST_POSDEF_NULLSPACE | HST_SEMIDEF | HST_INDEF | HST_UNKNOWN deriving (Enum, Show)
 
-newtype SQProblem = SQProblem (ForeignPtr SQProblem)
+newtype SQProblem = SQProblem (ForeignPtr SQProblem) deriving (Eq, Show)
 
 setupSQP :: Int -> Int -> HessianType -> IO SQProblem
 setupSQP nV nC h = do
