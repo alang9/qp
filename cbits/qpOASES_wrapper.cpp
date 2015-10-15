@@ -507,7 +507,7 @@ int_t sqproblem_init(sqproblem* const problem,
 		     )
 {
   qpOASES_Options myOptions;
-  qpOASES_Options_init(&myOptions, 1);
+  qpOASES_Options_init(&myOptions, 2);
   qpOASES_Options_copy(&myOptions, &globalOptionsObject);
   problem->p.setOptions(globalOptionsObject);
 
