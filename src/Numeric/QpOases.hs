@@ -6,6 +6,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Except
 import qualified Data.Vector.Storable as VS
+import Data.Matrix.CSC
 import Foreign hiding (void)
 import Foreign.C.Types
 import Numeric.LinearAlgebra
@@ -39,7 +40,6 @@ initSQP sqp h g a lbA ubA =
     let nVar = gSize
     let nConstr = aRow
     unless (nVar == hRow) $ throwE SizeMismatch
-    unless (nVar == hRow) $ throwE SizeMismatch
     unless (nVar == hCol) $ throwE SizeMismatch
     unless (nVar == aCol) $ throwE SizeMismatch
     unless (nConstr == lbASize) $ throwE SizeMismatch
@@ -52,6 +52,43 @@ initSQP sqp h g a lbA ubA =
       with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
         _ <- withSQProblem sqp $ \ptr ->
                sqproblem_init ptr hPtr gPtr aPtr nullPtr nullPtr lbAPtr ubAPtr
+               nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
+        !obj <- peek objPtr
+        !status <- fromIntegral <$> peek statusPtr
+        return $ (obj, status)
+    let solutionVec = VS.unsafeFromForeignPtr0 primalFP (fromIntegral nVar)
+    if status == 0
+      then return (solutionVec, obj)
+      else throwE (OasesError status)
+  where
+    mat' m f = ExceptT $ mat (cmat m) $ \church -> church $ \nrow ncol ptr -> runExceptT $ f nrow ncol ptr
+    vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
+
+initSparseSQP :: SQProblem -> CSC Double -> Vector Double -> Matrix Double
+              -> Vector Double -> Vector Double
+              -> ExceptT OasesError IO (Vector Double, Double)
+initSparseSQP sqp h g a lbA ubA =
+  vec' (cscVals h) $ \_hValsSize hValsPtr ->
+  vec' (cscCols h) $ \_hColsSize hColsPtr ->
+  vec' (cscRows h) $ \_hRowsSize hRowsPtr ->
+  vec' g $ \gSize gPtr ->
+  mat' a $ \aRow aCol aPtr ->
+  vec' lbA $ \lbASize lbAPtr ->
+  vec' ubA $ \ubASize ubAPtr -> do
+    let nVar = gSize
+    let nConstr = aRow
+    unless (nVar == aCol) $ throwE SizeMismatch
+    unless (nConstr == lbASize) $ throwE SizeMismatch
+    unless (nConstr == ubASize) $ throwE SizeMismatch
+    primalFP <- liftIO $ mallocForeignPtrArray (fromIntegral nVar)
+    (obj, status) <- liftIO $ withForeignPtr primalFP $ \xPtr ->
+      allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
+      alloca $ \objPtr ->
+      alloca $ \statusPtr ->
+      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
+        _ <- withSQProblem sqp $ \ptr ->
+               sqproblem_sparse_init ptr hRowsPtr hColsPtr hValsPtr gPtr aPtr
+               nullPtr nullPtr lbAPtr ubAPtr
                nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
         !status <- fromIntegral <$> peek statusPtr
@@ -101,6 +138,43 @@ hotstartSQP sqp h g a lbA ubA =
     mat' m f = ExceptT $ mat (cmat m) $ \church -> church $ \nrow ncol ptr -> runExceptT $ f nrow ncol ptr
     vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
+hotstartSparseSQP :: SQProblem -> CSC Double -> Vector Double -> Matrix Double
+                  -> Vector Double -> Vector Double
+                  -> ExceptT OasesError IO (Vector Double, Double)
+hotstartSparseSQP sqp h g a lbA ubA =
+  vec' (cscVals h) $ \_hValsSize hValsPtr ->
+  vec' (cscCols h) $ \_hColsSize hColsPtr ->
+  vec' (cscRows h) $ \_hRowsSize hRowsPtr ->
+  vec' g $ \gSize gPtr ->
+  mat' a $ \aRow aCol aPtr ->
+  vec' lbA $ \lbASize lbAPtr ->
+  vec' ubA $ \ubASize ubAPtr -> do
+    let nVar = gSize
+    let nConstr = aRow
+    unless (nVar == aCol) $ throwE SizeMismatch
+    unless (nConstr == lbASize) $ throwE SizeMismatch
+    unless (nConstr == ubASize) $ throwE SizeMismatch
+    primalFP <- liftIO $ mallocForeignPtrArray (fromIntegral nVar)
+    (obj, status) <- liftIO $ withForeignPtr primalFP $ \xPtr ->
+      allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
+      alloca $ \objPtr ->
+      alloca $ \statusPtr ->
+      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
+        _ <- withSQProblem sqp $ \ptr ->
+               sqproblem_sparse_hotstart ptr hRowsPtr hColsPtr hValsPtr gPtr
+               aPtr nullPtr nullPtr lbAPtr ubAPtr
+               nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
+        !obj <- peek objPtr
+        !status <- fromIntegral <$> peek statusPtr
+        return $ (obj, status)
+    let solutionVec = VS.unsafeFromForeignPtr0 primalFP (fromIntegral nVar)
+    if status == 0
+      then return (solutionVec, obj)
+      else throwE (OasesError status)
+  where
+    mat' m f = ExceptT $ mat (cmat m) $ \church -> church $ \nrow ncol ptr -> runExceptT $ f nrow ncol ptr
+    vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
+
 data Options
 
 foreign import ccall "sqproblem_init"
@@ -109,9 +183,23 @@ foreign import ccall "sqproblem_init"
         -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> Ptr Double
         -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> IO CInt
 
+foreign import ccall "sqproblem_sparse_init"
+    sqproblem_sparse_init
+        :: Ptr SQProblem -> Ptr CInt -> Ptr CInt -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> IO CInt
+
 foreign import ccall "sqproblem_hotstart"
     sqproblem_hotstart
         :: Ptr SQProblem -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> IO CInt
+
+foreign import ccall "sqproblem_sparse_hotstart"
+    sqproblem_sparse_hotstart
+        :: Ptr SQProblem -> Ptr CInt -> Ptr CInt -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double
         -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> Ptr Double
         -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> IO CInt
 

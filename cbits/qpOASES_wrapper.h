@@ -270,9 +270,45 @@ int_t sqproblem_init(sqproblem* const problem,
 		     int_t* const status
 		     );
 
+int_t sqproblem_sparse_init(sqproblem* const problem,
+                            sparse_int_t* const Hr,
+                            sparse_int_t* const Hc,
+                            real_t* const Hv,
+                            const real_t* const g,
+                            real_t* const Av,
+                            const real_t* const lb,
+                            const real_t* const ub,
+                            const real_t* const lbA,
+                            const real_t* const ubA,
+                            int_t* const nWSR,
+                            real_t* const cputime,
+                            real_t* const x,
+                            real_t* const y,
+                            real_t* const obj,
+                            int_t* const status
+                            );
+
 int_t sqproblem_hotstart(sqproblem* const problem, const real_t* const H,
 			 const real_t* const g,
 			 const real_t* const A,
+			 const real_t* const lb,
+			 const real_t* const ub,
+			 const real_t* const lbA,
+			 const real_t* const ubA,
+			 int_t* const nWSR,
+			 real_t* const cputime,
+			 real_t* const x,
+			 real_t* const y,
+			 real_t* const obj,
+			 int_t* const status
+			 );
+
+int_t sqproblem_sparse_hotstart(sqproblem* const problem,
+                                sparse_int_t* const Hr,
+                                sparse_int_t* const Hc,
+                                real_t* const Hv,
+                                const real_t* const g,
+                                real_t* const Av,
 			 const real_t* const lb,
 			 const real_t* const ub,
 			 const real_t* const lbA,
