@@ -100,6 +100,8 @@
 
 struct sqproblem;
 
+struct sqproblem_schur;
+
 /**
  *	\brief Manages all user-specified options for solving QPs.
  *
@@ -254,6 +256,8 @@ int_t SQProblem_setup(int_t nV,
 
 int_t sqproblem_setup(int_t nV, int_t nC, int_t hessiantType, sqproblem** problem);
 
+int_t sqproblem_schur_setup(int_t nV, int_t nC, int_t hessiantType, sqproblem_schur** problem);
+
 int_t sqproblem_init(sqproblem* const problem,
 		     const real_t* const H,
 		     const real_t* const g,
@@ -271,6 +275,24 @@ int_t sqproblem_init(sqproblem* const problem,
 		     );
 
 int_t sqproblem_sparse_init(sqproblem* const problem,
+                            sparse_int_t* const Hr,
+                            sparse_int_t* const Hc,
+                            real_t* const Hv,
+                            const real_t* const g,
+                            real_t* const Av,
+                            const real_t* const lb,
+                            const real_t* const ub,
+                            const real_t* const lbA,
+                            const real_t* const ubA,
+                            int_t* const nWSR,
+                            real_t* const cputime,
+                            real_t* const x,
+                            real_t* const y,
+                            real_t* const obj,
+                            int_t* const status
+                            );
+
+int_t sqproblem_sparse_schur_init(sqproblem_schur* const problem,
                             sparse_int_t* const Hr,
                             sparse_int_t* const Hc,
                             real_t* const Hv,
@@ -321,9 +343,29 @@ int_t sqproblem_sparse_hotstart(sqproblem* const problem,
 			 int_t* const status
 			 );
 
+int_t sqproblem_sparse_schur_hotstart(sqproblem_schur* const problem,
+                                sparse_int_t* const Hr,
+                                sparse_int_t* const Hc,
+                                real_t* const Hv,
+                                const real_t* const g,
+                                real_t* const Av,
+			 const real_t* const lb,
+			 const real_t* const ub,
+			 const real_t* const lbA,
+			 const real_t* const ubA,
+			 int_t* const nWSR,
+			 real_t* const cputime,
+			 real_t* const x,
+			 real_t* const y,
+			 real_t* const obj,
+			 int_t* const status
+			 );
+
 int_t SQProblem_cleanup( );
 
 int_t sqproblem_cleanup(sqproblem* const problem);
+
+int_t sqproblem_schur_cleanup(sqproblem_schur* const problem);
 
 
 #endif /* QPOASES_WRAPPER_H */

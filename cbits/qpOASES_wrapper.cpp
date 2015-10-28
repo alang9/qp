@@ -466,6 +466,10 @@ struct sqproblem
   SQProblem p;
 };
 
+struct sqproblem_schur
+{
+  SQProblemSchur p;
+};
 
 /*
  *      S Q P r o b l e m _ s e t u p
@@ -481,6 +485,22 @@ int_t sqproblem_setup(int_t nV, int_t nC, int_t hessianType,
 
         struct sqproblem *problem1 = new sqproblem;
         problem1->p = SQProblem(nV, nC, (HessianType)hessianType);
+        *problem = problem1;
+
+        return 0;
+}
+
+int_t sqproblem_schur_setup(int_t nV, int_t nC, int_t hessianType,
+                            sqproblem_schur** problem)
+{
+        if ( ( nV < 1 ) || ( nC < 0 ) )
+                return -1;
+
+        if ( ( hessianType < 0 ) || ( hessianType > 6 ) )
+                return -1;
+
+        struct sqproblem_schur *problem1 = new sqproblem_schur;
+        problem1->p = SQProblemSchur(nV, nC, (HessianType)hessianType);
         *problem = problem1;
 
         return 0;
@@ -522,6 +542,41 @@ int_t sqproblem_init(sqproblem* const problem,
  *      S Q P r o b l e m _ i n i t
  */
 int_t sqproblem_sparse_init(sqproblem* const problem,
+                            sparse_int_t* const Hr,
+                            sparse_int_t* const Hc,
+                            real_t* const Hv,
+                            const real_t* const g,
+                            real_t* const Av,
+                            const real_t* const lb,
+                     const real_t* const ub,
+                     const real_t* const lbA,
+                     const real_t* const ubA,
+                     int_t* const nWSR,
+                     real_t* const cputime,
+                     real_t* const x,
+                     real_t* const y,
+                     real_t* const obj,
+                     int_t* const status
+                     )
+{
+  qpOASES_Options myOptions;
+  qpOASES_Options_init(&myOptions, 2);
+  qpOASES_Options_copy(&myOptions, &globalOptionsObject);
+  problem->p.setOptions(globalOptionsObject);
+  int_t nV = problem->p.getNV();
+  int_t nC = problem->p.getNC();
+  SymSparseMat *H = new SymSparseMat(nV, nV, Hr, Hc, Hv);
+  DenseMatrix *A = new DenseMatrix(nC, nV, nV, Av);
+  H->createDiagInfo();
+
+  /* actually call solver */
+  returnValue returnvalue = problem->p.init( H,g,A,lb,ub,lbA,ubA, *nWSR,cputime );
+
+  /* assign lhs arguments */
+  return qpOASES_obtainOutputs(&problem->p,returnvalue, x,y,obj,status );
+}
+
+int_t sqproblem_sparse_schur_init(sqproblem_schur* const problem,
                             sparse_int_t* const Hr,
                             sparse_int_t* const Hc,
                             real_t* const Hv,
@@ -617,7 +672,44 @@ int_t sqproblem_sparse_hotstart(sqproblem* const problem,
   return 0;
 }
 
+int_t sqproblem_sparse_schur_hotstart(sqproblem_schur* const problem,
+                                sparse_int_t* const Hr,
+                                sparse_int_t* const Hc,
+                                real_t* const Hv,
+                                const real_t* const g,
+                                real_t* const Av,
+                         const real_t* const lb,
+                         const real_t* const ub,
+                         const real_t* const lbA,
+                         const real_t* const ubA,
+                         int_t* const nWSR,
+                         real_t* const cputime,
+                         real_t* const x,
+                         real_t* const y,
+                         real_t* const obj,
+                         int_t* const status
+                         )
+{
+  int_t nV = problem->p.getNV();
+  int_t nC = problem->p.getNC();
+  SymSparseMat *H = new SymSparseMat(nV, nV, Hr, Hc, Hv);
+  DenseMatrix *A = new DenseMatrix(nC, nV, nV, Av);
+  H->createDiagInfo();
+
+  /* actually call solver */
+  returnValue returnvalue = problem->p.hotstart( H,g,A,lb,ub,lbA,ubA, *nWSR,cputime );
+  /* assign lhs arguments */
+  return qpOASES_obtainOutputs( &problem->p,returnvalue, x,y,obj,status );
+
+  return 0;
+}
+
 int_t sqproblem_cleanup(sqproblem* const problem)
+{
+  delete problem;
+}
+
+int_t sqproblem_schur_cleanup(sqproblem_schur* const problem)
 {
   delete problem;
 }
