@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                qp
-version:             0.1.0.1
+version:             0.1.0.2
 synopsis:            Quadratic Programming
 -- description:         
 homepage:            https://github.com/alang9/qp
