@@ -41,9 +41,9 @@ withSQProblemSchur :: SQProblemSchur -> (Ptr SQProblemSchur -> IO a) -> IO a
 withSQProblemSchur (SQProblemSchur fPtr) f = withForeignPtr fPtr f
 
 initSQP :: SQProblem -> Matrix Double -> Vector Double -> Matrix Double
-        -> Vector Double -> Vector Double
+        -> Vector Double -> Vector Double -> Maybe Double
         -> ExceptT OasesError IO (Vector Double, Double)
-initSQP sqp h g a lbA ubA =
+initSQP sqp h g a lbA ubA m'cpuTime =
   mat' h $ \hRow hCol hPtr ->
   vec' g $ \gSize gPtr ->
   mat' a $ \aRow aCol aPtr ->
@@ -61,10 +61,11 @@ initSQP sqp h g a lbA ubA =
       allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
       alloca $ \objPtr ->
       alloca $ \statusPtr ->
-      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
+      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> 
+      maybe ($ nullPtr) with m'cpuTime $ \cpuTimePtr -> do
         _ <- withSQProblem sqp $ \ptr ->
                sqproblem_init ptr hPtr gPtr aPtr nullPtr nullPtr lbAPtr ubAPtr
-               nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
+               nWSRPtr cpuTimePtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
         !status <- fromIntegral <$> peek statusPtr
         return $ (obj, status)
@@ -77,9 +78,9 @@ initSQP sqp h g a lbA ubA =
     vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
 initSparseSQP :: SQProblem -> CSC Double -> Vector Double -> Matrix Double
-              -> Vector Double -> Vector Double
+              -> Vector Double -> Vector Double -> Maybe Double
               -> ExceptT OasesError IO (Vector Double, Double)
-initSparseSQP sqp h g a lbA ubA =
+initSparseSQP sqp h g a lbA ubA m'cpuTime =
   vec' (cscVals h) $ \_hValsSize hValsPtr ->
   vec' (cscCols h) $ \_hColsSize hColsPtr ->
   vec' (cscRows h) $ \_hRowsSize hRowsPtr ->
@@ -97,11 +98,12 @@ initSparseSQP sqp h g a lbA ubA =
       allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
       alloca $ \objPtr ->
       alloca $ \statusPtr ->
-      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
+      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr ->
+      maybe ($ nullPtr) with m'cpuTime $ \cpuTimePtr -> do
         _ <- withSQProblem sqp $ \ptr ->
                sqproblem_sparse_init ptr hRowsPtr hColsPtr hValsPtr gPtr aPtr
                nullPtr nullPtr lbAPtr ubAPtr
-               nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
+               nWSRPtr cpuTimePtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
         !status <- fromIntegral <$> peek statusPtr
         return $ (obj, status)
@@ -114,9 +116,9 @@ initSparseSQP sqp h g a lbA ubA =
     vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
 initSparseSQPSchur :: SQProblemSchur -> CSC Double -> Vector Double -> Matrix Double
-                   -> Vector Double -> Vector Double
+                   -> Vector Double -> Vector Double -> Maybe Double
                    -> ExceptT OasesError IO (Vector Double, Double)
-initSparseSQPSchur sqp h g a lbA ubA =
+initSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
   vec' (cscVals h) $ \_hValsSize hValsPtr ->
   vec' (cscCols h) $ \_hColsSize hColsPtr ->
   vec' (cscRows h) $ \_hRowsSize hRowsPtr ->
@@ -134,11 +136,12 @@ initSparseSQPSchur sqp h g a lbA ubA =
       allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
       alloca $ \objPtr ->
       alloca $ \statusPtr ->
-      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
+      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr ->
+      maybe ($ nullPtr) with m'cpuTime $ \cpuTimePtr -> do
         _ <- withSQProblemSchur sqp $ \ptr ->
                sqproblem_sparse_schur_init ptr hRowsPtr hColsPtr hValsPtr gPtr aPtr
                nullPtr nullPtr lbAPtr ubAPtr
-               nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
+               nWSRPtr cpuTimePtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
         !status <- fromIntegral <$> peek statusPtr
         return $ (obj, status)
@@ -151,9 +154,9 @@ initSparseSQPSchur sqp h g a lbA ubA =
     vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
 hotstartSQP :: SQProblem -> Matrix Double -> Vector Double -> Matrix Double
-            -> Vector Double -> Vector Double
+            -> Vector Double -> Vector Double -> Maybe Double
             -> ExceptT OasesError IO (Vector Double, Double)
-hotstartSQP sqp h g a lbA ubA =
+hotstartSQP sqp h g a lbA ubA m'cpuTime =
   mat' h $ \hRow hCol hPtr ->
   vec' g $ \gSize gPtr ->
   mat' a $ \aRow aCol aPtr ->
@@ -172,10 +175,11 @@ hotstartSQP sqp h g a lbA ubA =
       allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
       alloca $ \objPtr ->
       alloca $ \statusPtr ->
-      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
+      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr ->
+      maybe ($ nullPtr) with m'cpuTime $ \cpuTimePtr -> do
         _ <- withSQProblem sqp $ \ptr ->
                sqproblem_hotstart ptr hPtr gPtr aPtr nullPtr nullPtr lbAPtr ubAPtr
-               nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
+               nWSRPtr cpuTimePtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
         !status <- fromIntegral <$> peek statusPtr
         return $ (obj, status)
@@ -188,9 +192,9 @@ hotstartSQP sqp h g a lbA ubA =
     vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
 hotstartSparseSQP :: SQProblem -> CSC Double -> Vector Double -> Matrix Double
-                  -> Vector Double -> Vector Double
+                  -> Vector Double -> Vector Double -> Maybe Double
                   -> ExceptT OasesError IO (Vector Double, Double)
-hotstartSparseSQP sqp h g a lbA ubA =
+hotstartSparseSQP sqp h g a lbA ubA m'cpuTime =
   vec' (cscVals h) $ \_hValsSize hValsPtr ->
   vec' (cscCols h) $ \_hColsSize hColsPtr ->
   vec' (cscRows h) $ \_hRowsSize hRowsPtr ->
@@ -209,10 +213,11 @@ hotstartSparseSQP sqp h g a lbA ubA =
       alloca $ \objPtr ->
       alloca $ \statusPtr ->
       with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
+      maybe ($ nullPtr) with m'cpuTime $ \cpuTimePtr -> do
         _ <- withSQProblem sqp $ \ptr ->
                sqproblem_sparse_hotstart ptr hRowsPtr hColsPtr hValsPtr gPtr
                aPtr nullPtr nullPtr lbAPtr ubAPtr
-               nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
+               nWSRPtr cpuTimePtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
         !status <- fromIntegral <$> peek statusPtr
         return $ (obj, status)
@@ -225,9 +230,9 @@ hotstartSparseSQP sqp h g a lbA ubA =
     vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
 hotstartSparseSQPSchur :: SQProblemSchur -> CSC Double -> Vector Double -> Matrix Double
-                  -> Vector Double -> Vector Double
+                  -> Vector Double -> Vector Double -> Maybe Double
                   -> ExceptT OasesError IO (Vector Double, Double)
-hotstartSparseSQPSchur sqp h g a lbA ubA =
+hotstartSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
   vec' (cscVals h) $ \_hValsSize hValsPtr ->
   vec' (cscCols h) $ \_hColsSize hColsPtr ->
   vec' (cscRows h) $ \_hRowsSize hRowsPtr ->
@@ -245,11 +250,12 @@ hotstartSparseSQPSchur sqp h g a lbA ubA =
       allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
       alloca $ \objPtr ->
       alloca $ \statusPtr ->
-      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr -> do
+      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr ->
+      maybe ($ nullPtr) with m'cpuTime $ \cpuTimePtr -> do
         _ <- withSQProblemSchur sqp $ \ptr ->
                sqproblem_sparse_schur_hotstart ptr hRowsPtr hColsPtr hValsPtr gPtr
                aPtr nullPtr nullPtr lbAPtr ubAPtr
-               nWSRPtr nullPtr xPtr yPtr objPtr statusPtr
+               nWSRPtr cpuTimePtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
         !status <- fromIntegral <$> peek statusPtr
         return $ (obj, status)
