@@ -154,9 +154,10 @@ initSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
     vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
 initSparseSparseSQPSchur :: SQProblemSchur -> CSC Double -> Vector Double -> CSC Double
+                   -> Maybe (Vector Double) -> Maybe (Vector Double)
                    -> Vector Double -> Vector Double -> Maybe Double
                    -> ExceptT OasesError IO (Vector Double, Double)
-initSparseSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
+initSparseSparseSQPSchur sqp h g a m'lb m'ub lbA ubA m'cpuTime =
   vec' (cscVals h) $ \_hValsSize hValsPtr ->
   vec' (cscCols h) $ \_hColsSize hColsPtr ->
   vec' (cscRows h) $ \_hRowsSize hRowsPtr ->
@@ -164,6 +165,8 @@ initSparseSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
   vec' (cscVals a) $ \_aValsSize aValsPtr ->
   vec' (cscCols a) $ \_aColsSize aColsPtr ->
   vec' (cscRows a) $ \_aRowsSize aRowsPtr ->
+  maybe (\f -> f undefined nullPtr) vec' m'lb $ \_lbSize lbPtr ->
+  maybe (\f -> f undefined nullPtr) vec' m'ub $ \_ubSize ubPtr -> 
   vec' lbA $ \lbASize lbAPtr ->
   vec' ubA $ \ubASize ubAPtr -> do
     let nVar = gSize
@@ -181,7 +184,7 @@ initSparseSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
         _ <- withSQProblemSchur sqp $ \ptr ->
                sqproblem_sparse_sparse_schur_init ptr hRowsPtr hColsPtr hValsPtr gPtr
                aRowsPtr aColsPtr aValsPtr
-               nullPtr nullPtr lbAPtr ubAPtr
+               lbPtr ubPtr lbAPtr ubAPtr
                nWSRPtr cpuTimePtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
         !status <- fromIntegral <$> peek statusPtr
@@ -309,9 +312,9 @@ hotstartSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
     vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
 hotstartSparseSparseSQPSchur :: SQProblemSchur -> CSC Double -> Vector Double -> CSC Double
-                  -> Vector Double -> Vector Double -> Maybe Double
+                  -> Maybe (Vector Double) -> Maybe (Vector Double) -> Vector Double -> Vector Double -> Maybe Double
                   -> ExceptT OasesError IO (Vector Double, Double)
-hotstartSparseSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
+hotstartSparseSparseSQPSchur sqp h g a m'lb m'ub lbA ubA m'cpuTime =
   vec' (cscVals h) $ \_hValsSize hValsPtr ->
   vec' (cscCols h) $ \_hColsSize hColsPtr ->
   vec' (cscRows h) $ \_hRowsSize hRowsPtr ->
@@ -319,6 +322,8 @@ hotstartSparseSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
   vec' (cscVals a) $ \_aValsSize aValsPtr ->
   vec' (cscCols a) $ \_aColsSize aColsPtr ->
   vec' (cscRows a) $ \_aRowsSize aRowsPtr ->
+  maybe (\f -> f undefined nullPtr) vec' m'lb $ \_lbSize lbPtr ->
+  maybe (\f -> f undefined nullPtr) vec' m'ub $ \_ubSize ubPtr -> 
   vec' lbA $ \lbASize lbAPtr ->
   vec' ubA $ \ubASize ubAPtr -> do
     let nVar = gSize
@@ -335,7 +340,7 @@ hotstartSparseSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
       maybe ($ nullPtr) with m'cpuTime $ \cpuTimePtr -> do
         _ <- withSQProblemSchur sqp $ \ptr ->
                sqproblem_sparse_sparse_schur_hotstart ptr hRowsPtr hColsPtr hValsPtr gPtr
-               aRowsPtr aColsPtr aValsPtr nullPtr nullPtr lbAPtr ubAPtr
+               aRowsPtr aColsPtr aValsPtr lbPtr ubPtr lbAPtr ubAPtr
                nWSRPtr cpuTimePtr xPtr yPtr objPtr statusPtr
         !obj <- peek objPtr
         !status <- fromIntegral <$> peek statusPtr
