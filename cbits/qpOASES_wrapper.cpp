@@ -611,6 +611,42 @@ int_t sqproblem_sparse_schur_init(sqproblem_schur* const problem,
   return qpOASES_obtainOutputs(&problem->p,returnvalue, x,y,obj,status );
 }
 
+int_t sqproblem_sparse_sparse_schur_init(sqproblem_schur* const problem,
+                            sparse_int_t* const Hr,
+                            sparse_int_t* const Hc,
+                            real_t* const Hv,
+                            const real_t* const g,
+                                         sparse_int_t* const Ar,
+                                         sparse_int_t* const Ac,
+                            real_t* const Av,
+                            const real_t* const lb,
+                     const real_t* const ub,
+                     const real_t* const lbA,
+                     const real_t* const ubA,
+                     int_t* const nWSR,
+                     real_t* const cputime,
+                     real_t* const x,
+                     real_t* const y,
+                     real_t* const obj,
+                     int_t* const status
+                     )
+{
+  qpOASES_Options myOptions;
+  qpOASES_Options_init(&myOptions, 2);
+  qpOASES_Options_copy(&myOptions, &globalOptionsObject);
+  problem->p.setOptions(globalOptionsObject);
+  int_t nV = problem->p.getNV();
+  int_t nC = problem->p.getNC();
+  SymSparseMat *H = new SymSparseMat(nV, nV, Hr, Hc, Hv);
+  SparseMatrix *A = new SparseMatrix(nC, nV, Ar, Ac, Av);
+  H->createDiagInfo();
+
+  /* actually call solver */
+  returnValue returnvalue = problem->p.init( H,g,A,lb,ub,lbA,ubA, *nWSR,cputime );
+
+  /* assign lhs arguments */
+  return qpOASES_obtainOutputs(&problem->p,returnvalue, x,y,obj,status );
+}
 
 /*
  *      S Q P r o b l e m _ h o t s t a r t
@@ -694,6 +730,40 @@ int_t sqproblem_sparse_schur_hotstart(sqproblem_schur* const problem,
   int_t nC = problem->p.getNC();
   SymSparseMat *H = new SymSparseMat(nV, nV, Hr, Hc, Hv);
   DenseMatrix *A = new DenseMatrix(nC, nV, nV, Av);
+  H->createDiagInfo();
+
+  /* actually call solver */
+  returnValue returnvalue = problem->p.hotstart( H,g,A,lb,ub,lbA,ubA, *nWSR,cputime );
+  /* assign lhs arguments */
+  return qpOASES_obtainOutputs( &problem->p,returnvalue, x,y,obj,status );
+
+  return 0;
+}
+
+int_t sqproblem_sparse_sparse_schur_hotstart(sqproblem_schur* const problem,
+                                sparse_int_t* const Hr,
+                                sparse_int_t* const Hc,
+                                real_t* const Hv,
+                                const real_t* const g,
+                                             sparse_int_t* const Ar,
+                                             sparse_int_t* const Ac,
+                                real_t* const Av,
+                         const real_t* const lb,
+                         const real_t* const ub,
+                         const real_t* const lbA,
+                         const real_t* const ubA,
+                         int_t* const nWSR,
+                         real_t* const cputime,
+                         real_t* const x,
+                         real_t* const y,
+                         real_t* const obj,
+                         int_t* const status
+                         )
+{
+  int_t nV = problem->p.getNV();
+  int_t nC = problem->p.getNC();
+  SymSparseMat *H = new SymSparseMat(nV, nV, Hr, Hc, Hv);
+  SparseMatrix *A = new SparseMatrix(nC, nV, Ar, Ac, Av);
   H->createDiagInfo();
 
   /* actually call solver */

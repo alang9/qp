@@ -153,6 +153,47 @@ initSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
     mat' m f = ExceptT $ mat (cmat m) $ \church -> church $ \nrow ncol ptr -> runExceptT $ f nrow ncol ptr
     vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
+initSparseSparseSQPSchur :: SQProblemSchur -> CSC Double -> Vector Double -> CSC Double
+                   -> Vector Double -> Vector Double -> Maybe Double
+                   -> ExceptT OasesError IO (Vector Double, Double)
+initSparseSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
+  vec' (cscVals h) $ \_hValsSize hValsPtr ->
+  vec' (cscCols h) $ \_hColsSize hColsPtr ->
+  vec' (cscRows h) $ \_hRowsSize hRowsPtr ->
+  vec' g $ \gSize gPtr ->
+  vec' (cscVals a) $ \_aValsSize aValsPtr ->
+  vec' (cscCols a) $ \_aColsSize aColsPtr ->
+  vec' (cscRows a) $ \_aRowsSize aRowsPtr ->
+  vec' lbA $ \lbASize lbAPtr ->
+  vec' ubA $ \ubASize ubAPtr -> do
+    let nVar = gSize
+    let nConstr = cscNRows a
+    unless (nVar == cscNCols a) $ throwE SizeMismatch
+    unless (nConstr == lbASize) $ throwE SizeMismatch
+    unless (nConstr == ubASize) $ throwE SizeMismatch
+    primalFP <- liftIO $ mallocForeignPtrArray (fromIntegral nVar)
+    (obj, status) <- liftIO $ withForeignPtr primalFP $ \xPtr ->
+      allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
+      alloca $ \objPtr ->
+      alloca $ \statusPtr ->
+      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr ->
+      maybe ($ nullPtr) with m'cpuTime $ \cpuTimePtr -> do
+        _ <- withSQProblemSchur sqp $ \ptr ->
+               sqproblem_sparse_sparse_schur_init ptr hRowsPtr hColsPtr hValsPtr gPtr
+               aRowsPtr aColsPtr aValsPtr
+               nullPtr nullPtr lbAPtr ubAPtr
+               nWSRPtr cpuTimePtr xPtr yPtr objPtr statusPtr
+        !obj <- peek objPtr
+        !status <- fromIntegral <$> peek statusPtr
+        return $ (obj, status)
+    let solutionVec = VS.unsafeFromForeignPtr0 primalFP (fromIntegral nVar)
+    if status == 0
+      then return (solutionVec, obj)
+      else throwE (OasesError status)
+  where
+    mat' m f = ExceptT $ mat (cmat m) $ \church -> church $ \nrow ncol ptr -> runExceptT $ f nrow ncol ptr
+    vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
+
 hotstartSQP :: SQProblem -> Matrix Double -> Vector Double -> Matrix Double
             -> Vector Double -> Vector Double -> Maybe Double
             -> ExceptT OasesError IO (Vector Double, Double)
@@ -267,6 +308,46 @@ hotstartSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
     mat' m f = ExceptT $ mat (cmat m) $ \church -> church $ \nrow ncol ptr -> runExceptT $ f nrow ncol ptr
     vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
 
+hotstartSparseSparseSQPSchur :: SQProblemSchur -> CSC Double -> Vector Double -> CSC Double
+                  -> Vector Double -> Vector Double -> Maybe Double
+                  -> ExceptT OasesError IO (Vector Double, Double)
+hotstartSparseSparseSQPSchur sqp h g a lbA ubA m'cpuTime =
+  vec' (cscVals h) $ \_hValsSize hValsPtr ->
+  vec' (cscCols h) $ \_hColsSize hColsPtr ->
+  vec' (cscRows h) $ \_hRowsSize hRowsPtr ->
+  vec' g $ \gSize gPtr ->
+  vec' (cscVals a) $ \_aValsSize aValsPtr ->
+  vec' (cscCols a) $ \_aColsSize aColsPtr ->
+  vec' (cscRows a) $ \_aRowsSize aRowsPtr ->
+  vec' lbA $ \lbASize lbAPtr ->
+  vec' ubA $ \ubASize ubAPtr -> do
+    let nVar = gSize
+    let nConstr = cscNRows a
+    unless (nVar == cscNCols a) $ throwE SizeMismatch
+    unless (nConstr == lbASize) $ throwE SizeMismatch
+    unless (nConstr == ubASize) $ throwE SizeMismatch
+    primalFP <- liftIO $ mallocForeignPtrArray (fromIntegral nVar)
+    (obj, status) <- liftIO $ withForeignPtr primalFP $ \xPtr ->
+      allocaArray (fromIntegral $ nVar + nConstr) $ \yPtr ->
+      alloca $ \objPtr ->
+      alloca $ \statusPtr ->
+      with (5 * fromIntegral (nVar + nConstr)) $ \nWSRPtr ->
+      maybe ($ nullPtr) with m'cpuTime $ \cpuTimePtr -> do
+        _ <- withSQProblemSchur sqp $ \ptr ->
+               sqproblem_sparse_sparse_schur_hotstart ptr hRowsPtr hColsPtr hValsPtr gPtr
+               aRowsPtr aColsPtr aValsPtr nullPtr nullPtr lbAPtr ubAPtr
+               nWSRPtr cpuTimePtr xPtr yPtr objPtr statusPtr
+        !obj <- peek objPtr
+        !status <- fromIntegral <$> peek statusPtr
+        return $ (obj, status)
+    let solutionVec = VS.unsafeFromForeignPtr0 primalFP (fromIntegral nVar)
+    if status == 0
+      then return (solutionVec, obj)
+      else throwE (OasesError status)
+  where
+    mat' m f = ExceptT $ mat (cmat m) $ \church -> church $ \nrow ncol ptr -> runExceptT $ f nrow ncol ptr
+    vec' v f = ExceptT $ vec v $ \church -> church $ \size ptr -> runExceptT $ f size ptr
+
 data Options
 
 foreign import ccall "sqproblem_init"
@@ -289,6 +370,13 @@ foreign import ccall "sqproblem_sparse_schur_init"
         -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> Ptr Double
         -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> IO CInt
 
+foreign import ccall "sqproblem_sparse_sparse_schur_init"
+    sqproblem_sparse_sparse_schur_init
+        :: Ptr SQProblemSchur -> Ptr CInt -> Ptr CInt -> Ptr Double
+        -> Ptr Double -> Ptr CInt -> Ptr CInt -> Ptr Double -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> IO CInt
+
 foreign import ccall "sqproblem_hotstart"
     sqproblem_hotstart
         :: Ptr SQProblem -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double
@@ -306,6 +394,13 @@ foreign import ccall "sqproblem_sparse_schur_hotstart"
     sqproblem_sparse_schur_hotstart
         :: Ptr SQProblemSchur -> Ptr CInt -> Ptr CInt -> Ptr Double
         -> Ptr Double -> Ptr Double -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> Ptr Double
+        -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> IO CInt
+
+foreign import ccall "sqproblem_sparse_sparse_schur_hotstart"
+    sqproblem_sparse_sparse_schur_hotstart
+        :: Ptr SQProblemSchur -> Ptr CInt -> Ptr CInt -> Ptr Double
+        -> Ptr Double -> Ptr CInt -> Ptr CInt -> Ptr Double -> Ptr Double
         -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> Ptr Double
         -> Ptr Double -> Ptr Double -> Ptr Double -> Ptr CInt -> IO CInt
 
